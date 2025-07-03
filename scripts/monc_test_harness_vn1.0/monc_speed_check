@@ -1,0 +1,14 @@
+#!/bin/bash
+
+output_files=$1
+timing_file=$2
+
+for f in $output_files; do
+
+    time_ms=$(grep -i "Entire MONC run completed in" $f | awk '{print $7}')   
+    time=${time_ms/ms/}
+    
+    echo $time >> $timing_file
+
+done
+

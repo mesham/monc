@@ -1,0 +1,393 @@
+= Practical 2: An example of adding in a component =
+
+== (Contrived) Scientific motivation == 
+As standard, MONC has a homogeneous surface lower boundary.  We’re going to add in a component to MONC that will hold a region of the domain at a fixed temperature as a proxy for a land mass. The higher temperature of the island surface should induce a sea breeze and local ascent over the island.
+(NB:  For this exercise we’re going to add in the island at the lowest level above the surface. For real science, we’d want to modify the surface lowerbc.F90 code, which might take a bit longer but would follow a similar principle)
+
+NB: Both the singular "island" and the plural "islands" appear in the fortran code. We have tried to consistently use islands for the module name in the exercise below, which is important for making the code function.
+
+== Exercise with collaborative coding ==
+
+As you will see, each component in MONC has an initialization, timestep and finalization callback.  This practical has been split into two roles for "developer 1" and "developer 2" to highlight the working practices in collaborative coding (although if you are working alone, you can take on both roles). Having been paired up with a collaborator, developer 1 will write the code for the initialization and developer 2 will write the code for the timestep callback (there will be no finalization needed in this example).  Templates have been provided to reduce the amount of typing you will need to do and to help with the code structure.  
+
+
+== Steps to develop the component == 
+
+Step 1 (developer 1): 
+  Create a ticket describing your planned work, cc’ing your collaborators (developer 2). 
+  Make a note of your ticket number and assign it to developer 2
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!html
+Go to: <a href=https://code.metoffice.gov.uk/trac/monc/newticket>https://code.metoffice.gov.uk/trac/monc/newticket</a>
+}}}
+}}}
+
+    
+Step 2 (developer 2):
+  Create a branch to develop your code changes. When writing the description for your branch start the comment with #<ticket number>: [[br]]
+  Go back to the ticket (after it’s been created) to document where the code is being developed.  Pass the code back to developer 1 to continue - they will create any new files which will be needed.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+The fcm command would be:
+{{{#!sh
+> fcm bc practical2 fcm:monc.x_tr
+}}}
+Where practical2 is the branch name for this practical. Run this command in the main directory where you install MONC branches (the top level working directory, e.g. /home/vagrant/monc), rather than in the directory which held the code for practical 1.
+{{{#!html 
+<hr>
+}}}
+NB If you were developing a change for e.g. postprocessing code, you would create a branch in for the appropriate project:
+{{{#!sh
+> fcm bc <a_descriptive_name> fcm:monc-postproc.x_tr
+}}}
+}}}
+
+Step 3 (both):
+  You can now both check out the branch to start developing your code changes. Developer 1 may need to check the ticket for the branch details.  
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+Choose a top level working directory, e.g. /home/vagrant/monc/, and cd into it
+{{{#!sh
+> fcm co fcm:monc.x_br/dev/<developer_name>/<branch_name>
+}}}
+}}}
+  cd into the top level directory of your checked out code.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+In order to modify code collaboratively, it is important to make sure collaborators are working on a consistent base code.  
+If you document your changes regularly, collaborators will be emailed to inform them of any changes to the repository.  
+In practice, not all changes will be documented, so before starting work you should update your source: 
+{{{#!sh
+> fcm update
+}}}
+}}}
+
+  If you look at the checked out code, you should see a directory called testcases/course_examples/training_resources. Most of the code you will need will be in here and you can copy/paste if you prefer not to type it all out. If you do this, please try to read through and understand the code you are pasting!  
+
+Create the new files (developer 1 - developer 2 can also do this, or wait until the files are there and then us 'fcm update'):
+  A template file exists for the new component, we will use this as a basis for the new component:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+1) Create a directory in which the code for your component will live
+{{{#!sh
+> fcm mkdir --parents components/islands/src
+}}}
+(the --parents option allows the creation of nested new directories.)
+
+2) Use the template component as the basis for your new component
+{{{#!sh
+> touch components/islands/src/island_code.F90
+> fcm add components/islands/src/island_code.F90
+}}}
+This will create a new file and add it into the repository.  
+
+3) Copy the contents of the file testcases/course_examples/training_resources/component_template.txt into the file you've just created:
+{{{#!sh
+> cp testcases/course_examples/training_resources/component_template.txt components/islands/src/island_code.F90
+}}}
+
+4) Commit your new code back to the repository (and update the ticket so your partner can start coding)
+{{{#!sh
+> fcm commit
+}}}
+(ideally indicate the ticket number in your commit message)
+{{{#!html 
+<hr>
+}}}
+NB Steps 2 and 3 combined could have been achieved by doing an 'fcm cp', i.e.
+{{{#!sh
+> fcm cp testcases/course_examples/training_resources/component_template.txt components/islands/src/island_code.F90
+}}}
+}}}
+{{{#!div style="background: #cccad0; border: 3px ridge; width: 1000px"
+Template file, which can be found in testcases/course_examples/training_resources/component_template.txt
+{{{#!c
+!> Description of what the component does.
+!! Add as much information as is sensible.
+module <TEMPLATE>_mod
+
+  !> Template source code for a new component
+       
+  use monc_component_mod, only : component_descriptor_type
+  use state_mod, only : model_state_type
+  implicit none
+
+#ifndef TEST_MODE
+  private
+#endif
+
+  public <TEMPLATE>_get_descriptor
+contains
+
+  !> Provides a description of this component for the core to register
+  !! @returns The descriptor containing registration information for this component
+  type(component_descriptor_type) function <TEMPLATE>_get_descriptor()
+    <TEMPLATE>_get_descriptor%name="template"
+    <TEMPLATE>_get_descriptor%version=0.1
+    <TEMPLATE>_get_descriptor%initialisation=>initialisation_callback
+    <TEMPLATE>_get_descriptor%timestep=>timestep_callback
+    <TEMPLATE>_get_descriptor%finalisation=>finalisation_callback
+  end function <TEMPLATE>_get_descriptor
+
+  !> Initialisation callback hook which will <DO WHAT?>
+  !! @param current_state The current model state
+  subroutine initialisation_callback(current_state)
+    type(model_state_type), intent(inout), target :: current_state
+  end subroutine initialisation_callback
+
+  !> Timestep callback hook which will <DO WHAT?>
+  !! @param current_state The current model state
+  subroutine timestep_callback(current_state)
+    type(model_state_type), intent(inout), target :: current_state
+  end subroutine timestep_callback
+
+  !> Finalisation callback hook which will <DO WHAT?>
+  !! @param current_state The current model state
+  subroutine finalisation_callback(current_state)
+    type(model_state_type), intent(inout), target :: current_state
+  end subroutine finalisation_callback
+  
+end module <TEMPLATE>_mod
+}}}
+}}}
+
+
+Code changes (developer 1):
+  Developer 1 will write the initialization algorithm, i.e. the code which is called once at the start of the model run. This section of code should read in any configurable variables for your component.[[br]]
+  Open up the file you've just created and have a look through.  The first thing to do is to replace '<Template>' and '"template"' with a sensible name, e.g. 'islands' 
+  Scrolling down, you should see three sections, the 'initialisation_callback', the 'timestep_callback' and the 'finalisation_callback'.  You will be adding to the first of these for the initialisation code.
+  {{{#!div style="background: #cccad0; border: 3px ridge; width: 1000px"
+Initialisation code, which can be found in testcases/course_examples/training_resources/initialisation_code.txt
+{{{#!c
+  !> Initialisation callback hook which will read in location and 
+  !! temperature 
+  !! @param current_state The current model state
+  subroutine initialisation_callback(current_state)
+    type(model_state_type), intent(inout), target :: current_state
+
+    ! Local variables
+    integer :: nxloc, nyloc
+
+    nxloc=options_get_array_size(current_state%options_database, "island_xloc")
+    nyloc=options_get_array_size(current_state%options_database, "island_yloc")
+
+    if (nxloc /= nyloc)then
+      call log_master_log(LOG_ERROR, "Islands component requires the same number of x and y locations")
+    end if
+
+    n_islands=nxloc
+
+      ! Allocations
+      allocate(island_xloc(n_islands), island_yloc(n_islands),     &
+         island_semimajor(n_islands), island_semiminor(n_islands), &
+         island_angle(n_islands), island_temperature(n_islands)    & 
+         )
+      ! Read in parameters from options database
+      call options_get_real_array(current_state%options_database, "island_xloc", island_xloc) 
+      call options_get_real_array(current_state%options_database, "island_yloc", island_yloc) 
+      call options_get_real_array(current_state%options_database, "island_semimajor", island_semimajor) 
+      call options_get_real_array(current_state%options_database, "island_semiminor", island_semiminor) 
+      call options_get_real_array(current_state%options_database, "island_angle", island_angle) 
+      call options_get_real_array(current_state%options_database, "island_temperature", island_temperature) 
+
+  end subroutine initialisation_callback
+}}}
+}}}
+You will also need the following modules.  Place these near the top of the file in place of the module requirements that are there already (some aren't needed yet, but we'll add them all in now).
+{{{#!div style="background: #cccad0; border: 3px ridge; width: 1000px"
+Modules required. These can be found in testcases/course_examples/training_resources/modules_required.txt
+{{{#!c
+  ! The following modules are required...
+  use datadefn_mod, only : DEFAULT_PRECISION     
+  use state_mod, only : FORWARD_STEPPING, CENTRED_STEPPING, model_state_type  
+  use monc_component_mod, only : component_descriptor_type
+  use optionsdatabase_mod, only :  options_get_real_array, options_get_real, &
+     options_get_logical, options_get_array_size, options_get_string
+  use grids_mod, only : local_grid_type, X_INDEX, Y_INDEX, Z_INDEX
+  use science_constants_mod, only : pi, r_over_cp
+  use logging_mod, only : LOG_ERROR, log_master_log
+  use netcdf
+}}}
+}}}
+  Commit your changes back once you've edited the file:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm commit
+}}}
+}}}
+  Then update the ticket to explain the changes so that developer 2 knows what developer 1 has done.
+
+
+Code changes (developer 2):
+  Before changing any code developer 2 needs to update their branch so that you pick up the changes made by developer 1. This is done by executing the following command
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm update
+}}}
+}}}
+  Once branch is updated, developer 2 will write the timestep algorithm, i.e. the code which is called at each timestep. [[br]]
+{{{#!div style="background: #cccad0; border: 3px ridge; width: 1000px"
+Timestep code, which can be found in testcases/course_examples/training_resources/timestep_code.txt
+{{{#!c
+  !> Timestep callback hook which will relax back temperature at the lowest level above
+  !! ground to the island temperature
+  !! @param current_state The current model state
+  subroutine timestep_callback(current_state)
+    type(model_state_type), intent(inout), target :: current_state
+
+    ! Some local variables
+    integer :: i,j,k,i0, j0, iglobal, jglobal
+    integer :: i_island
+
+    integer :: local_i_start, local_i_end, local_j_start, local_j_end
+    real(DEFAULT_PRECISION) :: x, y, x0, y0, dx, dy, dt_adj, rad
+    real(DEFAULT_PRECISION) :: one_over_exner
+    real(DEFAULT_PRECISION) :: island_theta_pert
+
+    ! local grid location
+    local_i_start = current_state%local_grid%local_domain_start_index(X_INDEX)
+    local_i_end   = current_state%local_grid%local_domain_end_index(X_INDEX)
+    local_j_start = current_state%local_grid%local_domain_start_index(Y_INDEX)
+    local_j_end   = current_state%local_grid%local_domain_end_index(Y_INDEX)
+    dx = current_state%global_grid%configuration%horizontal%dx
+    dy = current_state%global_grid%configuration%horizontal%dy
+    i0 = current_state%local_grid%start(X_INDEX)
+    j0 = current_state%local_grid%start(Y_INDEX)
+    x0 = (i0 - 1)*dx
+    y0 = (j0 - 1)*dy
+
+
+    ! If we're using forward stepping then we need to use a different adjustment timescale.
+    if (current_state%field_stepping == FORWARD_STEPPING)then
+      dt_adj = current_state%dtm
+    else
+      dt_adj = 2.0*current_state%dtm
+    end if
+
+    ! Let's just adjust things in the lowest level above ground, i.e. k=2
+    k=2
+    
+    one_over_exner=(current_state%global_grid%configuration%vertical%prefn(k)/100000.)**(-r_over_cp)
+
+
+      do i_island=1,n_islands
+
+      ! Convert temperature to potential temperature
+        island_theta_pert = island_temperature(i_island)*one_over_exner - current_state%global_grid%configuration%vertical%thref(k)
+
+        do i=local_i_start, local_i_end
+          x = x0 + (i - local_i_start)*dx
+          
+          do j=local_j_start, local_j_end
+            y = y0 + (j - local_j_start)*dy
+            rad = (((x-island_xloc(i_island)) * cos(island_angle(i_island)) +  &
+               (y - island_yloc(i_island)) * sin(island_angle(i_island))  )    & 
+               /island_semimajor(i_island) )**2  +                             &
+               (((x-island_xloc(i_island)) * sin(island_angle(i_island)) -     &
+               (y - island_yloc(i_island)) * cos(island_angle(i_island))  )    & 
+               /island_semiminor(i_island) )**2 
+            
+            if (rad < 1.0)then
+              ! Calculate an increment to theta which will adjust back over a timestep
+              current_state%sth%data(k,j,i) = (island_theta_pert - current_state%zth%data(k,j,i))/dt_adj
+            end if
+
+          end do
+          
+        end do
+
+      end do
+
+  end subroutine timestep_callback
+}}}
+  Then update the ticket with the changes to state that the timestep callback has been added to the islands component.
+}}}
+  Commit your changes back once you've edited the file:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm commit
+}}}
+}}}
+
+Add defaults to the global configuration (developer 1):
+  Developer 1 needs to update their source in order to pick up the changes made by developer 2
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm update
+}}}
+}}}
+  
+  Having created the component, we must add in any information required by the global configuration (the '''global_config''' file in the main directory).  Developer 1 should append the following to the global configuration.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!python
+# Islands configuration
+island_xloc =
+island_yloc =
+island_semimajor =
+island_semiminor =
+island_angle =
+island_temperature =
+}}}
+}}}
+  Commit your changes back once you've edited the file:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm commit
+}}}
+}}}
+  and update the ticket stating that you have changed the global configuration to include the islands setup.
+
+Add order to component call (developer 2):
+  Update your source to pick up developer 1 changes to the global config
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm update
+}}}
+}}}
+  Having created the component, we must tell MONC when it should be called. Developer 2 should modify the global config file to call the new component (islands) just before the call to 'stepfields' within the dynamics_group_contents...
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!python
+dynamics_group_contents=kidtestcase, pw_advection, tvd_advection, th_advection, diffusion, viscosity, coriolis, buoyancy, damping, forcing, set_consistent_lowbc, lwrad_exponential, simplecloud, casim,diverr, psrce, flux_budget, diagnostics, profile_diagnostics, scalar_diagnostics, stepfields
+}}}
+}}}
+  Commit your changes back once you've edited the file:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!sh
+> fcm commit
+}}}
+}}}
+
+Update your source and add in the appropriate use statements into **components/componentheaders.static**  and commit changes (developer 1)
+
+Update your source and add in the appropriate calls to **components/componentregistrations.static** and commit changes (developer 2)
+
+The component is now ready to build and try out.  Simply add appropriate variables to the test case configuration you wish to run, e.g. 
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!python
+islands_enabled=.true.
+}}}
+{{{#!python
+# Islands configuration
+island_xloc = 1000.0
+island_yloc = 1000.0
+island_semimajor = 300.0
+island_semiminor = 400.0
+island_angle = 0.786
+island_temperature = 289.0
+}}}
+}}}
+
+Using the same build commands used in practical 1, build MONC and try to run...
+
+Developer 1 forgot to put in all the declarations! Someone needs to add in the following before the 'contains' statement: 
+
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!c
+! Arrays to configure the islands
+real(DEFAULT_PRECISION), allocatable :: island_xloc(:), island_yloc(:) 
+real(DEFAULT_PRECISION), allocatable :: island_semimajor(:), island_semiminor(:) 
+real(DEFAULT_PRECISION), allocatable :: island_angle(:), island_temperature(:) 
+integer :: n_islands
+	
+logical :: island_from_file=.false.
+real(DEFAULT_PRECISION), allocatable :: island_temperature_map(:,:)
+}}}
+}}}
+
+Please check if you can detect the presence of the islands in the output (e.g. in the potential temperature in the lowest levels), so you know you have done everything correctly. Also see if you can close the ticket you created at the beginning of this exercise.

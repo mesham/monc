@@ -1,0 +1,53 @@
+= MONC IO server =
+
+{{{
+#!html
+<p>
+<img src="https://code.metoffice.gov.uk/trac/monc/raw-attachment/wiki/MoncDoc/IOServer/dataandcomp.png" align="right">
+The IO server is used for calculating diagnostics and writing values to file (both diagnostics and prognostics.) Typically one core per processor will run the IO server and serve the remaining MONC computational cores which ''fire and forget'' their prognostic values. This is illustrated in image to the right, where cores in a processor communicate values to their local IO server core and then for diagnostic calculations (such as finding means) these IO server cores communicate between themselves with limited amounts of data. Arranging like so means that communications between MONC and the IO server are local and typically performed in memory (and the same NUMA region) rather than having to hit the network. You can increase the ratio of IO servers to computational cores for memory reasons if you wish.
+
+More details can be found in the paper <a href="https://code.metoffice.gov.uk/trac/monc/raw-attachment/wiki/MoncDoc/IOServer/nbrown_isav16.pdf">here</a>
+</p>
+}}}
+
+== IO server architecture ==
+
+{{{
+#!html
+<p>
+<center>
+<img src="https://code.metoffice.gov.uk/trac/monc/raw-attachment/wiki/MoncDoc/IOServer/io_pipeline.png">
+</center>
+The image illustrates the pipeline/workflow of the IO server. Data enters from a MONC computational core via the <i>external API</i>. Inside MONC itself is a bridge to send data over as and when it is needed to the IO server and this also registers with the IO server at model start up and communicates specifics about the simulation (such as what fields are registered, data sizes etc...) The IO server is split into two federators which contain the majority of the functionality.
+</p>
+}}}
+
+=== Diagnostics federator ===
+This is responsible for data analytics and, as defined by the user's XML, will preform different operations on raw fields received from a MONC computational core. There are two main activities here, operators (such as maths, splitting of fields etc) and communications (such as broadcast, reduction etc...) The communications pose quite a challenge as we would implement these as collectives (such as a reduction) but with MPI the issue order of collectives matters and even though MPI 3 has non-blocking collectives this doesn't solve the problem. Instead an active messaging approach is taken, where messages (forming a broadcast, reduction etc) are asynchronously sent with a unique identifier and the thread then performs some other activity. When and if a corresponding message relating to this activity is returned (such as the result of the reduction) then a thread is reactivated and the original action involved a callback function which will be called to handle that message. It does add some complexity to the code, but this is abstracted in these communication routines and does allow for very asynchronous issuing of data which is important.
+
+=== Writer federator ===
+This looks after the writing to file, in terms of defining files, writing to files and performing time manipulation of fields as required. When data arrives (either diagnostics or raw prognostics) they first go through the writer field manager, this enforces field ordering. Due to the asynchronicity of the diagnostics federator, fields can arrive out of order (i.e. timestep n+1 before n) and the field manager will track what fields have arrived and when, if there is a missing field it will queue later data until the preceding field arrives when it can then fire them all to the federator. The federator itself will first perform time manipulation, as defined by the user XML file, on the fields. This manipulation may or may not produce a value, if it does it will check whether the value should trigger a write (i.e. has the preconfigured time elapsed or not.) If no write is to be performed then the value is stored, otherwise the appropriate NetCDF file is defined and writing of available fields will start. In NetCDF file definition and creation is a collective, so all IO servers must take part in this. Fields are then written and the file is closed once all fields are written. Each IO server will register a callback to file closing and the thread will then go idle, this again builds on the active messaging of the diagnostics federator and, because closing a file is collective, all IO servers will perform it at the same time as determined by the active messaging synchronisation.
+
+==== Closing a file ==== 
+Actually the close is more complex than just calling the appropriate NetCDF close function because other collective activities are also performed here. Raw (prognostic) fields are written here, this is because, for performance, we set these as collective writes. Even though there are contributions from each local computational MONC core, these are combined (based on relative location in global domain) into as large as possible parcels of data which are then written. During initialisation communication occurs to inform the IO servers the maximum number of (non-contiguous) writes, and due to the collective nature, any IO server that doesn't have this maximum number will just fill out the remainder with empty writes.
+Storing the state of the IO server also occurs at this point, due to the asynchronicity we wait for all the diagnostic federator activities to complete up until that point and then checkpoint the state of the writer federator and its associated activities. This is a two stage process, firstly it will go through all the data structures, lock them and count up the amount of memory that is needed to serialise that structure. Once the overall amount of memory has been determined, it is then allocated and the structures are then walked again to physically pack them up and unlock associated locks and mutexes. This approach avoids lots of memory allocations and deallocations. The serialised state is then written to the file, for memory reasons the structure of the file splits up each different writer configuration as these can get very large with intermediate values and as such memory is deallocated between each one.
+
+== FAQ ==
+
+=== I am looking at a file, there is a ''number_options'', ''string'' and ''kvp'' dimension - what are these? ===
+
+These are the number of options in the options database, the length of a string (the length defined in MONC is 150 which is required in Fortran, parameter STRING_LENGTH in file model_core/src/datadefn.F90 . We need strings as the keys for the options database are strings and the lengths match with this approach.) and key-value-pair (again for the options database each string key has a value associated with it.)
+
+These are dimensions are provided regardless of whether your file actually contains an options database or not, typically the OD is written out on a checkpoint
+
+=== I am seeing something like ''time_series_20_300.0 = 2'' , what is this time series dimension and what do 20 and 300.0 represent here? ===
+
+20 is timestep and 300.0 is (configured) model time, this is a unique key to identify the time series dimensions. For instance if you are time averaging and writing out every 20 model seconds, this would be time_series_A_20.0 (where A is the timestep frequency of getting the data.) 2 here means there are 2 entries, i.e. these fields have been outputted twice - you might assume at 20.0 seconds and 40.0 seconds with this example but it won't be exactly that due to the dynamic timestepping hence a variable holds the exact time points. variables are z,y,x,time_series to represent the variable at the different points in time (output frequencies.) 
+
+=== I am missing an x and y variable in my checkpoint file! ===
+
+No you're not, u & v are the wind field in x and y. The grid in x and y can be reinitialised from _resolution, _top and _bottom variables in each direction that are in the NetCDF file. These are fields in the configuration and if you want them in your diagnostics file then simply add them into the configuration... super easy!
+
+=== What is this checkpoint component in the main MONC for? ===
+
+Two things actually - firstly the checkpoint component in the MONC computational model will read in the current state of the model wrt computation and support checkpoint restart, but it will also write out the state of the MONC computation if you want too. There are two ways to checkpoint the state of the model run - you can either do it via the MONC model, or via the IO server. It is much more preferable to do it via the IO server as this not only dumps out the state of the computational side of things, but also the IO server (diagnostics state) and so you can restart both from this checkpoint. Writing a checkpoint from the MONC component will only write out the computational state so you won't be able to restart the diagnostic state (this will have to restart from fresh.) In the MONC configuration file you can decide which method to use, the default setting for checkpointing is ''auto'' which will use the IO server method preferably but if you don't have the IO server enabled then it will use the MONC component instead.

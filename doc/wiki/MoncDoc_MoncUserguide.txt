@@ -1,0 +1,56 @@
+= MONC User Guide =
+[[PageOutline]]
+
+== Basic System setup for MONC ==
+
+In order to run MONC on any systems there are some system setups and library dependencies that have to install so that the user can interact with the Met Office Science repository using FCM and build MONC using the correct libraries. The following 3 wikis describe the set-up required. 
+   
+   * [MoncDoc/MoncUserguide/MoncDependencies MONC Dependencies]: Information about required MONC dependencies and how to install them.
+   * [MoncDoc/MoncUserguide/MosrsSetup Setup for Met Office Science repository]: Information about setting up password caching for the met office science repository (mosrs)
+   * [MoncDoc/MoncUserguide/FcmKeyWords Setup for FCM keywords]: Information about setting up FCM keywords for MONC on your system
+
+== Quick start guide for how to build and run MONC ==
+
+Once your system is set-up with the correct FCM and subversion (SVN) versions and the mpich, fftw and netcdf-parallel are installed, you are ready to extract the MONC code from the mosrs, build and run MONC. The following wiki presents a general Quick Start guide followed by more specific guides for a system, e.g. MONSOON and the metomi virtual machine system. 
+
+=== General Quick Start Guide ===
+  * [MoncDoc/MoncUserguide/Quickstart General quick start guide ]
+
+=== Set-up and run MONC on MONSOON ===
+  * [MoncDoc/MoncUserguide/MoncOnMonsoon Run MONC on MONSooN] (assuming the user has a MONSooN account)
+
+=== Set-up and run MONC on ARCHER ===
+  * [MoncDoc/MoncUserguide/MoncOnArcher Run MONC on Archer] (assuming the user has an ARCHER account)
+
+=== Set-up and run MONC on XCE, XCF, XCS-R ===
+
+  * [MoncDoc/MoncUserguide/MoncOnMetOfficeCray Run MONC on XCE, XCF and XCS] (assuming the user has a Met Office account)
+
+=== Set-up and run MONC on EXA, EXZ etc. ===
+
+  * [MoncDoc/MoncUserguide/MoncOnMetOfficeQuads Run MONC on quads EXA etc. or EXZ] (assuming the user has a Met Office account)
+
+=== Set-up the metomi virtual machine (metomi-vms) and run MONC === 
+  * [MoncDoc/MoncUserguide/MoncVms Run MONC using metomi-vms] 
+
+== Compiling and Building MONC ==
+
+From the quick start guides it should be clear that MONC is built using FCM make. FCM make uses predefined machine configuration files which are specific to the system and the compiler. These files define amongst other things
+  * location of code to extract (if necessary) and compile 
+  * compile flags
+  * location of libraries to link
+The following wikis present information about different machine and FCM configurations that have been tested 
+  * MoncDoc/MachineConfiguration
+  * MoncDoc/FcmConfiguration  
+
+=== Compiling and building MONC with CASIM ===
+  * MoncDoc/RunningWithCasim
+
+== Working practices and tips for MONC development ==
+  * MoncDoc/MoncUserguide/MoncWorkingPractices
+
+== Developing and adding a component ==
+  * [MoncDoc/MoncUserguide/AddingaComponent Adding a new component]
+
+== Developing and adding Diagnostics ==
+  * [MoncDoc/MoncUserguide/AddingDiagnostics Adding diagnostics to MONC and CASIM]

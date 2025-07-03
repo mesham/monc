@@ -1,0 +1,15 @@
+= How to add a new component =
+
+The components available within MONC can be configured to explore parameter spaces and switched to change functionality.  However, there may be occasions where the user may which to develop an experiment that requires adding in code as a new component. 
+
+There are four steps to adding in a new component:
+   1. Write the Fortran source code including initialisation, timestep and finalisation routines (as required).  Initialisation should include any configuration options required for the component. [[BR]] The source code should go into a directory at **components/<COMPONENT_NAME>/src**
+   1. Add in default configuration options for the component into the **global_config** file. 
+   1. Add in the appropriate use statements and calls into **components/componentheaders.static** and **components/componentregistrations.static**
+   1. Add entries for intialisation, finalisation and timestep calls into the appropriate groups/order in the **global_config** file.
+   
+To use the new component, configure and enable the component in the test case configuration file.
+
+== Example: Adding in a region of fixed temperature == 
+
+See MoncDoc/MoncTraining/CoursePracticalTwo

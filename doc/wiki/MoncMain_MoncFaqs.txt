@@ -1,0 +1,88 @@
+= Frequently Asked Questions =
+[[PageOutline]]
+
+Feel free to add any questions relating to MONC and the MONC IO server, MONC build and running MONC on systems
+
+== Runtime errors ==
+
+=== My simulation fails with an Fatal error in PMPI_Comm_free ===
+
+This error occurs when MONC tries to write to a file in a non-existent directory or path. For example the path for the diagnostic files can be set in io/io_cfg_files/data_write_1files.xml with the following code
+{{{
+<data-writing>
+   <file name="diagnostic_files/diagnostics_ts.nc" write_time_frequency="{diag_write_freq}" title="All diagnostic values">
+}}}
+On the trunk, the directory {{{diagnostic_files}}} exists, so no error will be produced. If, however, the directory name is changed to {{{diagnostic_rubbish}}} in the xml file and that directory has not been created by the user, then the following error will occur at runtime
+{{{
+Fatal error in PMPI_Comm_free: Invalid communicator, error stack:
+PMPI_Comm_free(143): MPI_Comm_free(comm=0x7f8c0c286f3c) failed
+PMPI_Comm_free(93).: Null communicator
+}}}
+This error will also be created if the path for the checkpoint file has been changed and the path does not exist.
+
+The solution to this error is, therefore, to check that the paths in the monc configuration file and the IO configuration files are correct. In particular check that any directories you are hoping to write to do exist.  
+
+== IO server and Diagnostics ==
+
+=== My simulation failed to do a checkpoint restart ===
+
+The answer below mostly relate to simulations executed on ARCHER or Met Office systems, which are executed using qsub and the submonc.pbs script. There are 3 main reasons why a simulation has run with no issues but failed to restart
+==== Checkpoint file was not written ==== 
+   * check in the checkpoint_files directory to see if a checkpoint file is there. If it is not, something has happened to either the write of the file (check monc_stdout for error messages) or the checkpoint file has been written to a different location. In this latter scenario, check the path in the .pbs file you submitted and the .mcf file that you are running.
+
+==== Checkpoint file is written but my run will not restart ====  
+If the checkpoint file has been written and you can read it with ncdump or ncview, then the likely cause of you restart problem is to do with a naming problem. To check this do the following
+   1. First check that the suffix of checkpoint name, i.e. the part of the checkpoint file name before the last numeric value, e.g. in the file name {{{checkpoint_files/RCE_dump_22000.nc}}} the suffix is {{{RCE_dump_}}}. This suffix must match the {{{export RUN_NAME=RCE_dump_}}} in the .pbs script. If these values do not match then the [source:main/trunk/misc/continuation.sh run script] cannot find the checkpoint file. 
+   2. Second check the name of the checkpoint file in the monc config file. For example, in [source:main/trunk/testcases/radiative_convective_equilibrium/RCE_MO_cray.mcf RCE_MO_cray.mcf] the checkpoint file is defined as {{{checkpoint_file="checkpoint_files/RCE_dump.nc"}}}, where checkpoint_files is a standard directory on the MONC main trunk and RCE_dump.nc is the name of checkpoint file. For restarts to work following has to be adhered to 
+      * the directory name in the mcf must be the same as the checkpoint directory environment variable, {{{CP_DIR}}}, in the .pbs, e.g. {{{export CP_DIR=checkpoint_files}}}
+      * the run name environment variable {{{RUN_NAME}}} in the .pbs must be the same as file name less the .nc, e.g. {{{export RUN_NAME=RCE_dump_}}} in the .pbs relates to {{{RCE_dump.nc}}} in the mcf file. (For example of setup that works see [source:main/trunk/submonc.pbs submonc.pbs] and [source:main/trunk/testcases/radiative_convective_equilibrium/RCE_MO_cray.mcf RCE_MO_cray.mcf]).
+   3. If the checkpoint file is good and the paths are correct, the last thing to check is that the environment variable for the submission script is correct. 
+      * This is an environment variable, {{{SUBMISSION_SCRIPT_NAME}}}, which must be set to the submission script filename, i.e. in {{{submonc.pbs}}}, {{{export SUBMISSION_SCRIPT_NAME=submonc.pbs}}}. If {{{SUBMISSION_SCRIPT_NAME}}} is not the name of the submission script then a different script or no script will be launched at the restart and the run will fail or run the wrong case.
+
+==== Checkpoint file is unreadable and restart fails ====
+If you can not open the checkpoint file with ncdump or read the file with python or ncview, then something has gone wrong. In this scenario please check the standard output file for errors and report through the ticketing system, making sure you have committed changes to your branch and detailed on the ticket your branch, the submission script and the monc configuration file you are running. 
+
+=== MONC seems to be running but I am not getting any diagnostics ===
+
+The Problem: MONC is running successfully, i.e. there are no error messages in the screen output or your standard output file, but there is 
+   * No output file
+   * An output netcdf file but the data is rubbish 
+
+Possible solutions: 
+   1. This scenario often occurs when the {{{sampling_frequency}}} (in the monc configuration file) multiplied by the model timestep is longer in time that the averaging/output frequency, i.e. {{{mm}}} or {{{mm1}}} in the standard testcases. This scenario means that there is no sample during the period, which often leads to a corrupted netcdf file and often prevents any further outputs. Thus, in order to fix this ensure that {{{sampling_frequency}}} and {{{3d_sampling_frequency}}} multiplied by the timestep is smaller than the averaging/output time ({{{mm}}} or {{{mm1}}}). (NOTE: As MONC uses a dynamic timestep, you will not know what your timestep is but you do know what the {{{dtmmax}}} is since this is set in the monc configuration file. The timestep will never go above this value so you can use this for your calculations)  
+   1. This scenario can also occur if the sampling frequency for 3d fields is too high. In general a {{{sample_frequency = 1}}} is bad, particularly for 3d fields, since there is a lot of data to move. If possible it is recommended that the 3d_sampling_frequency should be no lower than 30 (bearing in mind the point above). If higher is required the user will have to test the simulation carefully and possibly increase the {{{thread_pool number}}} in the IO config file
+   1. This scenario can also occur if the {{{thread_pool number}}} is too low. By default {{{thread_pool number = 10}}}, which is highly conservative and will restrict data transfer. This number has been tested up to 500 with no obvious detriment on the simulation runtime. Hence, if the data is not outputting or it is falling over during a diagnostic write, try increasing the {{{thread_pool number}}}.
+
+=== I am looking at a file, there is a ''number_options'', ''string'' and ''kvp'' dimension - what are these? ===
+
+These are the number of options in the options database, the length of a string (the length defined in MONC is 150 which is required in Fortran, parameter STRING_LENGTH in file model_core/src/datadefn.F90 . We need strings as the keys for the options database are strings and the lengths match with this approach.) and key-value-pair (again for the options database each string key has a value associated with it.)
+
+These are dimensions are provided regardless of whether your file actually contains an options database or not, typically the OD is written out on a checkpoint
+
+=== I am seeing something like ''time_series_20_300.0 = 2'' , what is this time series dimension and what do 20 and 300.0 represent here? ===
+
+20 is timestep and 300.0 is (configured) model time, this is a unique key to identify the time series dimensions. For instance if you are time averaging and writing out every 20 model seconds, this would be time_series_A_20.0 (where A is the timestep frequency of getting the data.) 2 here means there are 2 entries, i.e. these fields have been outputted twice - you might assume at 20.0 seconds and 40.0 seconds with this example but it won't be exactly that due to the dynamic timestepping hence a variable holds the exact time points. variables are z,y,x,time_series to represent the variable at the different points in time (output frequencies.) 
+
+=== I am missing an x and y variable in my checkpoint file! ===
+
+No you're not, u & v are the wind field in x and y. The grid in x and y can be reinitialised from _resolution, _top and _bottom variables in each direction that are in the NetCDF file. These are fields in the configuration and if you want them in your diagnostics file then simply add them into the configuration... super easy!
+
+=== What is this checkpoint component in the main MONC for? ===
+
+Two things actually - firstly the checkpoint component in the MONC computational model will read in the current state of the model wrt computation and support checkpoint restart, but it will also write out the state of the MONC computation if you want too. There are two ways to checkpoint the state of the model run - you can either do it via the MONC model, or via the IO server. It is much more preferable to do it via the IO server as this not only dumps out the state of the computational side of things, but also the IO server (diagnostics state) and so you can restart both from this checkpoint. Writing a checkpoint from the MONC component will only write out the computational state so you won't be able to restart the diagnostic state (this will have to restart from fresh.) In the MONC configuration file you can decide which method to use, the default setting for checkpointing is ''auto'' which will use the IO server method preferably but if you don't have the IO server enabled then it will use the MONC component instead.
+
+=== No precipitation diagnostic in output but specified in the xml file? ===
+
+Check that casim is switched on and your version of MONC was compiled with casim. 
+
+== Initialisation problems ==
+
+=== Error: Initial u/v/theta/q profile does not reach the top of the model ===
+
+Unlike the LEM, MONC requires all of the values of height/u/v/theta/q to be on one line of the configuration file with each value separated by a comma. 
+
+== Running with time varying surface fluxes ==
+
+=== I have set up my configuration with lower_bc_enabled=.true., use_surface_boundary_conditions=.true., use_time_varying_surface_values= .true. and specified surface_boundary_input_times,surface_sensible_heat_flux and surface_latent_heat_flux but the run fails ===
+
+Check that the maximum length for forcing input elements is great or equal to the number of forcing times you have. This is set using the MAX_SURFACE_INPUTS variable in the  setfluxlook.F90 component. 

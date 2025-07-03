@@ -1,0 +1,119 @@
+= How to run MONC using the metomi-vms =
+
+== Introduction ==
+
+The infrastructure of MONC requires subversion (svn) and fcm as well as password caching to work with the Met Office science repository service (mosrs). In order to make it easier to set up this infrastructure, we have developed a virtual machine system (vms) based on the metomi-vms. For details of metomi-vms see [https://github.com/metomi/metomi-vms]. The main purpose of the metomi-vms is that it sets up the standard mosrs infrastructure on linux, windows and Mac OS, without the user needing to worry about the configuration. On this page we provide brief details about how to install the metomi-vms on your system and then install and run MONC.
+
+== Full instructions for installing metomi-vms for MONC ==
+
+Important note: At present the MONC trunk does not build on ubuntu-18.04, which is the default metomi-vms system. Therefore, once you have downloaded the metomi-vms driectory, it is important that you change the script name in the {{{Vagrantfile}}}, i.e.
+   * Original file is found in {{{metomi-vms-master/Vagrantfile}}} contains
+{{{
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+load 'Vagrantfile.ubuntu-1804'
+}}}
+   * Change this to the following
+{{{
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+load 'Vagrantfile.ubuntu-1604'
+}}}
+This will load the virtual machine with ubuntu16.04, which MONC builds on
+ 
+   1. Follow the instructions on [https://github.com/metomi/metomi-vms] for installing the metomi-vms. 
+      - The install of metomi-vms can take up to 2 hours depending on the connection and your machine
+      - As stated in the instructions, the before doing anything, you must install virtual box ([https://www.virtualbox.org/]) and Vagrant ([https://www.vagrantup.com/]). 
+      - It is also important to note that by default, the metomi-vms is configured with 1 GB memory and 2 CPUs.
+   2. Once installed, open the VirtualBox Manager. In the left hand column there will be a machine called something like "ubuntu-1604_default_..." where the "..." are a string of numbers. Double click the machine to open the virtual machine.
+      - The virtual machine contains a light weight linux distribution (LXDE) 
+   3. Once the virtual machine is active, a terminal window will appear with the following prompt
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  Met Office Science Repository Service Password: 
+ }}}
+  Enter your mosrs password. You will then be prompted to enter your mosrs username.
+}}}
+   4. Point 3 should give you full access to mosrs, so that you can checkout, create branches, update etc. If the update or create-branch do not work then the configuration of subversion/servers has not worked. To fix this do the following
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  emacs /home/vagrant/.subversion/servers 
+ }}}
+  Then add the following to the servers file
+ {{{#!sh
+  [groups]
+  metofficesharedrepos = code*.metoffice.gov.uk
+
+  [metofficesharedrepos] 
+  # Specify your Science Repository Service user name here
+  username = myusername
+  store-plaintext-passwords = no
+ }}}
+  where myusername is your mosrs username. Once you have made this change, save it and run the following command
+ {{{#!sh
+   mosrs-cache-password
+ }}}
+  You will be prompted for your mosrs password and username. Once entered you should be able to create branches etc.
+}}} 
+  5. Finally, we need to install the appropriate libraries for MONC so that MONC will build in the metomi-vms. To achieve this do the following
+      - check out the metomi_vms_install_monc_extras
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  fcm co https://code.metoffice.gov.uk/svn/monc/scripts/trunk/metomi_vms_install_monc_extras
+ }}}
+}}}
+      - sudo the script to /usr/local/bin
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  sudo cp metomi_vms_install_monc_extras/install-monc-extras_ubuntu1604 /usr/local/bin
+ }}}
+}}}    
+      - Run the script to install netcdf, hdf5, mpich and ncview (not a required library but useful to include)
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  sudo install-monc-extras_ubuntu1604
+ }}}
+}}} 
+      - Note that the VM does not have history browsing with Pageup and Pagedn enabled by default. This can be modified in '''/etc/inputrc''' (e.g. use '''sudo gedit /etc/inputrc''' and uncomment line 41 and 42)
+
+=== Installing metomi-vms from USB ===
+
+   1. Install VirtualBox ([https://www.virtualbox.org/])
+
+   2. Plug in the USB stick with the virtual machine ova file
+
+   3. Open VirtualBox Manager click on file and then import appliance 
+
+   4. locate the ova file on the USB stick, select it click next and the install. 
+      - There will be an error message about the about the vagrant file. Click OK on this message as I think it is not a problem (please report if there is a problem).
+
+   5. Configure the .subversion/servers file by doing the following.
+{{{
+#!div style="font-size: 100%"
+ {{{#!sh
+  emacs /home/vagrant/.subversion/servers 
+ }}}
+  This file contains the following
+ {{{#!sh
+  [groups]
+  metofficesharedrepos = code*.metoffice.gov.uk
+
+  [metofficesharedrepos] 
+  # Specify your Science Repository Service user name here
+  username = myusername
+  store-plaintext-passwords = no
+ }}}
+  change myusername to your mosrs username. Once you have made this change, save it and run the following command
+ {{{#!sh
+   mosrs-cache-password
+ }}}
+  You will be prompted for your mosrs password and username. Once entered you should be able to create branches etc.
+}}} 
+  6. As well as containing the infrastructure for mosrs, the virtual machine on the USB contains a checked out local copy of MONC. This can be run and built directly with no need to connect to mosrs. 

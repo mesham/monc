@@ -1,0 +1,102 @@
+== Running MONC on ARCHER ==
+We have been running MONC on 2 processes so far; one for the actual MONC and the other for the IO server (handling of diagnostics.) In this practical we will run MONC on ARCHER which allows us to run on many more processes. You should have been given a guest account, and we have a specific reservation for this practical on the machine. Even if you have access to ARCHER with other accounts, we suggest using your guest account during this practical so that you can submit to our reserved nodes rather than queue up with everyone else using the machine.
+
+=== Logging in and set up===
+You will start a secure shell to ARCHER, where '''XX''' is replaced by your specific guest number. It will ask for a password which you have been given. (the -Y flag will forward X so you can use graphical tools such as gedit.)
+{{{
+ssh -Y guestXX@login.archer.ac.uk
+}}}
+
+Now you will need to configure ARCHER to log into the Met Office science repository, just as you did locally, edit the file '''~/.subversion/servers''' to add the following configuration. You should replace '''myusername''' with your Met Office science repository username.
+
+{{{
+[groups]
+metofficesharedrepos = code*.metoffice.gov.uk
+
+[metofficesharedrepos]
+# Specify your Science Repository Service user name here
+username = myusername
+store-plaintext-passwords = no
+}}}
+
+=== Check out and compile MONC ===
+
+We are now going to change to the work (parallel) filesystem and check out a branch which contains the submission script & configuration files for this practical, issue
+
+{{{
+cd /work/y14/y14/$USER
+fcm co https://code.metoffice.gov.uk/svn/monc/main/branches/dev/nickbrown/r551_archer_practical
+}}}
+
+MONC requires the FFTW and NetCDF existing libraries to be present during build which are loaded via the module environment. Once we have loaded these we can then build MONC and we will use the (default loaded) Cray compiler for this.
+
+{{{
+module load cray-netcdf-hdf5parallel/4.3.2
+module load cray-hdf5-parallel/1.8.13
+module load fftw
+
+cd r551_archer_practical
+
+fcm make -j4 -f fcm-make/monc-cray-cray.cfg
+}}}
+
+=== Running on ARCHER ===
+We will submit the simple '''fire_sc_config''' example first. This is queued up via a queue submission script, which tells the machine the specifics of your job and for this first example we will run on 24 cores (1 node of ARCHER.) ''(The -q course1 submits it to our specially reserved queue on ARCHER, to submit it to the standard queue then you can remove this argument, but it will far longer to start up as you are then queueing with everyone else on the machine.)''
+
+{{{
+qsub -q course1 submonc.pbs
+}}}
+
+To view your place in the queue, you can issue
+
+{{{
+qstat -u $USER
+}}}
+
+Once complete you can view the output of the job by looking at the '''monc_course.oXXXXXX''' file (where XXXXXX is the numeric ID of the job)
+
+=== Changing the parameters ===
+As per the first practical, open the user configuration file '''testcases/course_examples/fire_sc_config''' and change  
+
+{{{
+  use_surface_boundary_conditions=.false.
+}}}
+to 
+{{{
+  use_surface_boundary_conditions=.true.
+}}}
+
+Now, in the same user configuration file '''testcases/course_examples/fire_sc_config''' change  
+{{{
+  lwrad_exponential_enabled=.false.
+}}}
+to 
+{{{
+  lwrad_exponential_enabled=.true.
+}}}
+
+As we have significantly increased the amount of work to do, lets run on 48 cores (2 nodes of ARCHER.) Open the '''submonc.pbs''' script and change (line 3)
+
+{{{
+#PBS -l select=1
+}}}
+to
+{{{
+#PBS -l select=2
+}}}
+
+and 
+
+{{{
+aprun -n 24 build/bin/monc_driver.exe --config=testcases/course_examples/fire_sc_config
+}}}
+to
+{{{
+aprun -n 48 build/bin/monc_driver.exe --config=testcases/course_examples/fire_sc_config
+}}}
+
+Once you have done this, resubmit the job.
+
+=== Extending the domain size ===
+
+In practical one it took a significant amount of extra time to run locally with larger domain sizes but on ARCHER this is far more realistic. Modify '''testcases/course_examples/fire_sc_config''' to extend the local size ('''x_size''' or '''y_size''' is probably easiest.) Feel free to increase the number of nodes for your job to see the difference it has on overall runtime. 

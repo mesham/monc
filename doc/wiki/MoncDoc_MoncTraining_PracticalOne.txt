@@ -1,0 +1,110 @@
+= A practical example of adding in a component =
+= Note: this is an outdated version, see https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc/CoursePracticalOne =
+
+== (Contrived) Scientific motivation == 
+As standard, MONC has a homogeneous surface lower boundary.  We’re going to add in a component to MONC that will hold a region of the domain at a fixed temperature as a proxy for a land mass. The higher temperature of the island surface should induce a sea breeze and local ascent over the island.
+(NB:  For this exercise we’re going to add in the island at the lowest level above the surface. For real science, we’d want to modify the surface lowerbc.F90 code, which might take a bit longer but would follow a similar principle)
+
+== Exercise with collaborative coding ==
+
+As you will see, each component in MONC has an initialization, timestep and finalization callback.  This practical has been split into two roles for "developer 1" and "developer 2" to highlight the working practices in collaborative coding (although if you are working alone, you can take on both roles). Having been paired up with a collaborator, developer 1 will write the code for the initialization and developer 2 will write the code for the timestep callback (there will be no finalization needed in this example).  Templates have been provided to reduce the amount of typing you will need to do and to help with the code structure.  
+
+
+== Steps to develop the component == 
+
+Step 1 (developer 1): 
+  Create a ticket describing your planned work, cc’ing your collaborators (developer 2). 
+  Make a note of your ticket number and assign it to developer 2
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+{{{#!html
+Go to: <a href=https://code.metoffice.gov.uk/trac/monc/newticket>https://code.metoffice.gov.uk/trac/monc/newticket</a>
+}}}
+}}}
+
+    
+Step 2 (developer 2):
+  Create a branch to develop your code changes. When writing the description for your branch start the comment with #<ticket number>: [[br]]
+  Go back to the ticket (after it’s been created) to document where the code is being developed.  Pass the code back to developer 1 to continue - they will create any new files which will be needed.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+The fcm command would be:
+{{{#!sh
+> fcm bc <a_descriptive_name> fcm:monc-main.x_br/pkg/Share/r432_MoncCourse
+}}}
+{{{#!html 
+<hr>
+}}}
+NB You would normally create the branch from the trunk, i.e. 
+{{{#!sh
+> fcm bc <a_descriptive_name> fcm:monc-main.x_tr
+}}}
+If you were developing a change for e.g. postprocessing code, you would create a branch in for the appropriate project:
+{{{#!sh
+> fcm bc <a_descriptive_name> fcm:monc-postproc.x_tr
+}}}
+}}}
+
+
+Step 3 (both):
+  You can now both check out the branch to start developing your code changes. Developer 1 may need to check the ticket for the branch details.  
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+Choose a top level working directory, e.g. /home/username/monc/, and cd into it
+{{{#!sh
+> fcm co fcm:monc-main.x_br/dev/<developer_name>/<branch_name>
+}}}
+}}}
+  cd into the top level directory of your checked out code.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+In order to modify code collaboratively, it is important to make sure collaborators are working on a consistent base code.  
+If you document your changes regularly, collaborators will be emailed to inform them of any changes to the repository.  
+In practice, not all changes will be documented, so before starting work you should update your source: 
+{{{#!sh
+> fcm update
+}}}
+}}}
+
+  If you look at the checked out code, you should see a directory called training_resources (this is not in the trunk, but only stuff you will want for the course). Most of the code you will need will be in here and you can copy/paste if you prefer not to type it all out. If you do this, please try to read through and understand the code you are pasting!  
+
+Code changes (developer 1):
+  You are developing the initialization code, i.e. the code which will be executed once at the model startup.  However, you will first create the new component:
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+1) Create a directory in which the code for your component will live
+{{{#!sh
+> fcm mkdir --parents components/islands/src
+}}}
+(the --parents option allows the creation of nested new directories.)
+
+2) Use the template component as the basis for your new component
+{{{#!sh
+> touch components/islands/src/island_code.F90
+> fcm add components/islands/src/island_code.F90
+}}}
+This will create a new file and add it into the repository.  
+
+3) Copy the contents of the file training_resources/component_template.F90 into the file you've just created:
+{{{#!sh
+> cp training_resources/component_template.F90 components/islands/src/island_code.F90
+}}}
+
+4) Commit your new code back to the repository (and update the ticket so your partner can start coding)
+{{{#!sh
+> fcm commit
+}}}
+(ideally indicate the ticket number in your commit message)
+{{{#!html 
+<hr>
+}}}
+NB Steps 2 and 3 combined could have been achieved by doing an 'fcm cp', i.e.
+{{{#!sh
+> fcm cp training_resources/component_template.F90 components/islands/src/island_code.F90
+}}}
+}}}
+
+
+Code changes (developer 2):
+
+  You are going to be developing the timestep algorithm, i.e. the code which is called at each model timestep. However, your collaborator is creating the file into which you're going to add your code, so to begin with we'll modify the global configuration file to make sure the component is executed at the appropriate time within the sequence of all components through the model timestep.
+{{{#!div style="background: #accad0; border: 3px ridge; width: 800px"
+1) Open the global_config file which can be found in the top level of your checked out code. You should see a line which lists different groups
+
+}}}
+

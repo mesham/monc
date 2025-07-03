@@ -1,0 +1,73 @@
+= Working practices for MONC development =
+
+'''Prior to using or developing MONC, it is assumed that a user has done the [https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc/MoncUserguide#BasicSystemsetupforMONC Basic system setup for MONC]''' 
+ 
+In order to run and develop a change for the MONC repository please follow these working practices.
+
+It is recommended that you use FCM (a wrapper for subversion) for code development:
+   * [https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc/MoncUserguide#BasicSystemsetupforMONC Basic system setup for MONC] covers the installation and set-up of FCM but if you would like more information
+      * [http://metomi.github.io/fcm/doc/installation/ FCM Installation]
+      * [http://metomi.github.io/fcm/doc/user_guide/ FCM User Guide]
+
+== Open a Ticket ==
+
+Prior to any development or change, it is recommended that a user creates a ticket to document 
+
+   * Select "New Ticket" from the menu above and fill out the fields appropriately, e.g. 
+      * The reason for the change or development
+      * Type of change, e.g. enhancement, minor, normal or major issue, task etc, 
+      * the component it relates to, e.g. main, casim, scripts
+   * Assign the ticket to yourself.
+   * Update the ticket as appropriate as your change is developed.
+
+== Create a Branch ==
+
+   * For MONC all developments and changes should branch from the HEAD of the trunk:
+{{{
+fcm branch-create --ticket=<number> <branch_name> fcm:monc.x_tr
+}}}
+
+== Develop your Change ==
+
+   * Checkout the branch: {{{fcm co fcm:monc.x_br/dev/<username>/rxxx_<branch_name>}}}
+   * Commit changes {{{fcm commit}}} with an appropriate log message starting with the ticket number #<number>.
+
+== Tips for development and testing ==
+
+The following is recommended for making developments and testing changes
+   
+   * All developments and changes should initially be developed on a desktop or local PC. It is much more simple to debug issues on a local system than an HPC. 
+   * It is recommended initially all developments are built with the debug configs, which are present in the fcm-make directory of your branch, e.g. fcm-make/monc-ubuntu-16.04-gnu-debug.cfg, fcm-make/monc-cray-gnu-debug.cfg, fcm-make/monc-cray-cray-debug.cfg
+   * Initially users should develop changes using test-case with a small domain, since this will speed up the development process 
+
+== Test-harness ==
+
+All changes and developments that are going to be committed to trunk need to be run through the MONC test-harness. This testing will show if the results compare known good output (KGO). Results should bit compare with KGO for all cases and bit compare across decompositions, if there is a change in this the developer needs to state why on the ticket and present impact of this change. For details on the test harness see
+
+   * [https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc/BetaTestSuite Old test harness page, needs updating]
+   * [https://code.metoffice.gov.uk/trac/monc/wiki/MoncMain/MoncTesting Test harness results] 
+ 
+== Create a Ticket Summary ==
+
+   * Add this text to your ticket description: {{{[wiki:ticket/<ticket_number>/TicketSummary]}}} replacing <ticket_number> with the appropriate number.
+   * Click on the newly created link and create a wiki page using the template !MONCTicketSummary or !CASIMTicketSummary
+   * Fill out the information as required with a link to your branch.
+      * This should include output from the test-harness and any justification for changes in the KGO
+
+== MONC Review ==
+
+   * Ask someone familiar with the code you are changing to review it for scientific/technical correctness.
+   * ''Assign for sci/tech review to'' your agreed sci/tech reviewer.
+
+The reviewer should check that:
+   * The code changes are understood and appropriately made.
+   * The documentation is sufficient to understand the code change and its impacts.
+
+== !Code/System Review ==
+
+   * Once you and your sci/tech reviewer are happy to submit the code to the trunk, ''assign for code review to'' adrianhill (for now). 
+   * Following approval at code/system review your code reviewer will merge your branch with the trunk, test the new head of trunk code, and if successful, close the ticket.
+   * Commits to the trunk should have a log message of the following format:
+       {{{
+       #ticket_number : Author : Summary : Type : Component : Severity
+       }}}

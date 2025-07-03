@@ -1,0 +1,38 @@
+== FCM location keywords for MONC ==
+
+It is useful to set up [http://metomi.github.io/fcm/doc/user_guide/annex_cfg.html#keyword FCM location keywords] for the MONC code. This enables the usage of
+
+{{{
+fcm checkout fcm:monc.x_br/dev/<user>/<branch>
+}}}
+
+instead of
+
+{{{
+fcm checkout https://code.metoffice.gov.uk/svn/monc/main/branches/dev/<user>/<branch>
+}}}
+
+To see the available keywords on your system, use {{{fcm keyword-print}}}. If you are using the virtual machine system or you have already set-up the keywords you should have the following in the list:
+
+{{{
+location{primary}[casim.x] = https://code.metoffice.gov.uk/svn/monc/casim
+location{primary}[monc.x] = https://code.metoffice.gov.uk/svn/monc/main
+location{primary}[monc-doc.x] = https://code.metoffice.gov.uk/svn/monc/doc
+location{primary}[monc-postproc.x] = https://code.metoffice.gov.uk/svn/monc/postproc
+location{primary}[monc-scripts.x] = https://code.metoffice.gov.uk/svn/monc/scripts
+}}}
+
+If your system does not have the keyword {{{monc.x}}} but does that other keywords then place the following in {{{~/.metomi/fcm/keyword.cfg}}} to enable them:
+{{{
+#!ini
+location{primary, type:svn}[monc.x] = https://code.metoffice.gov.uk/svn/monc/main
+browser.loc-tmpl[monc.x] = https://code.metoffice.gov.uk/trac/{1}/intertrac/source:/{2}{3}
+browser.comp-pat[monc.x] = (?msx-i:\A // [^/]+ /svn/ ([^/]+) /*(.*) \z)
+location{primary, type:svn}[casim.x] = https://code.metoffice.gov.uk/svn/monc/casim
+browser.loc-tmpl[monc.x] = https://code.metoffice.gov.uk/trac/{1}/intertrac/source:/{2}{3}
+browser.comp-pat[monc.x] = (?msx-i:\A // [^/]+ /svn/ ([^/]+) /*(.*) \z)
+}}}
+
+If your system does not have any keywords, i.e. {{{fcm keyword-print}}} returns nothing, then you need to create the {{{~/.metomi/fcm/keyword.cfg}}}  
+and add the above block into {{{~/.metomi/fcm/keyword.cfg}}}. 
+

@@ -1,0 +1,259 @@
+----
+= [[span(style=color: #FF0000, WARNING)]] =
+----
+== [[span(style=color: #FF0000, NOTE: These instructions are not valid on ARCHER2.)]] ==
+- Please check [wiki:ticket/369/TicketSummary] for an approximate outline for configuring MONC on the ARCHER2 **4-Cabinet** system.
+- The full ARCHER2 system is due to open to users at the end of November 2021.  MONC configuration for that system is still under development.
+----
+= [[span(style=color: #FF0000, WARNING)]] =
+----
+
+
+
+= How to run MONC on ARCHER with MOSRS access =
+
+= Contents
+
+[[PageOutline(2-6,,inline,unnumbered)]]
+
+== Known issues ==
+
+MONC will not work with the default compiler version on ARCHER (`cce/8.5.8`), and the previous default netCDF/HDF modules (`cray-netcdf-hdf5parallel/4.3.3.1` and `cray-hdf5-parallel/1.8.14`). For the recommended module set see [#Loadrequiredmodules]. 
+
+== Logging on to ARCHER ==
+
+To access ARCHER: 
+{{{
+ssh -X <userid>@login.archer.ac.uk
+}}}
+
+For details on the ARCHER service see: http://www.archer.ac.uk/. If you are an active ARCHER users, it is recommended that you sign up for service alerts via SAFE: https://www.archer.ac.uk/safe/, so that you get advance warning about system downtime and software updates. 
+
+Contact the CMS helpdesk http://cms.ncas.ac.uk/wiki/CmsHelpdesk to request an NCAS (n02) ARCHER account, or for questions related to CMS-managed software on ARCHER such as FCM or the MOSRS password caching process. 
+
+General ARCHER enquiries should go to the ARCHER helpdesk. 
+
+== First time setup ==
+
+These steps only need to be completed once. 
+
+=== Configure access to Met Office science repository service (MOSRS) ===
+
+This is necessary to allow access to Met Office code via ARCHER. This is done by creating the file `~/.subversion/servers`. Open the file for editing and add the lines below. You should replace 'myusername' with your Met Office science repository username (this will usually be of the form firstnamelastname all lower-case).
+
+{{{
+[groups]
+metofficesharedrepos = code*.metoffice.gov.uk
+
+[metofficesharedrepos]
+# Specify your Science Repository Service user name here
+username = myusername
+store-plaintext-passwords = no
+}}}
+
+If you do not have an account on the repository, you can request one by following the instructions at https://code.metoffice.gov.uk/trac/home/wiki/FAQ
+
+=== Setup you ARCHER environment ===
+
+Some environment variables need to be set on ARCHER to access the FCM (Flexible Configuration Management) system, plus the scripts to access the MONC code repository. 
+
+FCM is a version control software, built on top of svn, and also a make-like build system, which is used by the Met Office to manage various scientific codes: http://metomi.github.io/fcm/doc/user_guide/annex_quick_ref.html
+
+Add the following lines to your `.profile` on ARCHER, to ensure your environment is correctly loaded each time you login to ARCHER. 
+
+{{{
+# Setup environment for running models with FCM
+. /work/y07/y07/umshared/bin/rose-um-env
+
+# For MOSRS password caching
+module load gpg-agent
+module load svn
+}}}
+
+Note: The `rose-um-env` script replaces lines you may have in your `.profile` or `.bashrc` that set `$UMDIR` and paths to `$UMDIR/bin` and `$UMDIR/software/bin`. 
+
+To access the MONC code from ARCHER, you also need to update the versions of gpg-agent and subversion loaded in your environment. Note that there are system versions of svn and gpg-agent already available on ARCHER, but these are old and will not work correctly. 
+
+
+== Checking out the MONC code == 
+
+=== Cache your MOSRS password === 
+
+**Important:** You only need to do run gpg-agent if you want to write to the MONC repository. If you only want to checkout the code, then you can do this by typing in your password interactively, and can skip to the next section.
+
+For security reasons, the Met Office does not allow interactive access to its repositories, therefore passwords need to be stored safely using a system such as gpg-agent or gnome keyring. These systems usually run as background (daemon) processes which are not allowed by ARCHER. To get around this we run gpg-agent with a new bash shell process, and we have to manually run two scripts to set this up. The first launches gpg-agent, and the second stores your password for MOSRS. 
+
+Unlike on other machines, you will only be able to access MOSRS from the terminal that you run the scripts from. 
+
+1. First make sure you have carefully followed the setup steps above. 
+
+2. Now run the following command to launch gpg-agent: 
+   {{{
+. setup-gpg
+}}}
+   
+3. Next run the following command: 
+   {{{
+setup-mosrs
+}}}
+  You will be prompted for your MOSRS password. If this works correctly you will see the following output: 
+  {{{
+Met Office Science Repository Service password: 
+gpg-agent[20851]: Assuan processing failed: IPC read error
+Subversion password cached
+}}}
+ 
+  Unfortunately, there is an issue with subversion on ARCHER which means that it prints the following warning each time: 
+  {{{
+gpg-agent[20851]: Assuan processing failed: IPC read error
+}}}
+  Although annoying, it can safely be ignored. 
+
+4. When you have finished working with MOSRS you can shut down gpg-agent as follows: 
+  {{{ 
+  exit
+}}} 
+  This will print the following: 
+  {{{
+gpg-agent[20851]: parent process died - shutting down
+gpg-agent[20851]: gpg-agent (GnuPG) 2.0.10 stopped
+}}} 
+   You may also see these messages if gpg-agent dies unexpectedly, in which case you will need to re-run steps 2. and 3. 
+
+Note: Command 2. starts a new bash shell in your terminal, but it should look like more or less like your old one. You will be in the same directory, and have the same modules and environment variables loaded, so you should be able build and run the model as normal. When you launch a bash sub-shell anything in your `.bashrc` is re-run (but not your `.profile`), so anything that is being reset (e.g. aliases, command-prompts) should be put in here. 
+
+Note: You may find that if you Ctrl-C it kills the gpg-agent process as well as the process you intended to kill. To get around this you can run an additional `bash` in between steps 2. and 3. It is easy to get confused with all these sub-shells. Run `echo $SHLVL` to see where you are. You should get `3` if running this additional bash. Run `exit` twice to return to the original shell. 
+
+=== Check out the latest version of MONC ===
+
+At the time of writing, this is vn0.8 (for details, visit https://code.metoffice.gov.uk/trac/monc/wiki/MoncMain/Vn0.8Release).
+
+Note that on ARCHER you need to run parallel jobs from the "work" filespace (i.e. `/work/n02/n02/$USERNAME`). So it is advisable to checkout the code and work from there. If you have setup your `.profile` file as advised above, you will find that the environment variables `$WORKDIR`, `$DATADIR`, and `$DEVTDIR` all point to your `/work` space. 
+
+You may want to make a new directory, e.g. 'MONC' within your 'work' space, and change into this first:  
+{{{
+cd $WORKDIR/MONC
+}}}
+
+If this is your first time using MONC, you will need to create a new development branch. Note that you will need to have setup MOSRS password caching to do this on ARCHER. Alternatively you can create the branch on another machine where you have this setup (e.g. the vagrant Virtual Machine): 
+
+In the example below, a new branch is created from vn0.8 on the trunk:
+{{{
+fcm bc <branch_name> fcm:monc.x_tr@vn0.8
+}}}
+
+Then you can check out your MONC development branch on ARCHER using:
+{{{
+fcm co fcm:monc.x_br/dev/<username>/<branch_name>
+}}}
+
+If you have not cached your password you will be prompted for it twice. 
+
+== Building MONC ==
+
+=== Load required modules ===
+
+MONC requires some additional libraries to be present during build which are loaded via the module environment:
+
+{{{
+module load cray-netcdf-hdf5parallel/4.4.1.1
+module load cray-hdf5-parallel/1.10.0.1
+module load fftw
+module load cray-petsc-complex
+module swap cce cce/8.4.1
+}}}
+
+'''Important''': You may have modules set in your `.profile` or `.bashrc` file already, so check that these do not conflict. You ''can'' set the modules in your `.profile` (not `.bashrc`) but make sure you are setting the correct versions (above). 
+
+These libraries can be loaded by either cut-and-pasting the above code block into your ARCHER session or by doing the following: 
+
+1. Go back to your top-level MONC directory, e.g.: 
+   {{{
+cd $WORKDIR/MONC
+}}}
+
+2. Type the following
+   {{{
+fcm co https://code.metoffice.gov.uk/svn/monc/scripts/trunk/environments monc_environments
+}}}
+   (If you are not using password caching you will be prompted for your password.) 
+
+3. Then type
+   {{{
+source monc_environments/set_env_archer_cray.sh
+}}}
+The above {{{source}}} command will load the required modules in your terminal. 
+
+=== Compile the MONC code === 
+
+To build the model, change back to the top-level directory of your branch and run the following command:
+{{{
+fcm make -j4 -f fcm-make/monc-cray-cray.cfg
+}}}
+The above command will build only MONC-main, using your local checked-out copy.
+
+If you wish to build the model with the CASIM respository, then use the following command instead:
+{{{
+fcm make -j4 -f fcm-make/monc-cray-cray.cfg -f fcm-make/casim.cfg --new
+}}}
+(If you are not using password caching, you will need to type your science repository password 4 times.)
+
+Finally, if you wish to make changes to the CASIM code then you will need to create your own casim branch and build the model using this. This can be done as follows. First, you will need to create a new casim branch from the head of the trunk using the 'bc' (branch-create) fcm command:
+{{{
+fcm bc <branch_name> fcm:casim.x_tr
+}}}
+Once you have created your branch and committed any code changes back to the repository, you then need to edit fcm-make/casim.cfg on ARCHER to point to your development branch rather than the head of the trunk. This is done by updating the following lines in casim.cfg according to the following:
+{{{
+extract.location{primary}[casim] = fcm:casim.x_br
+extract.location[casim]  = dev/<user_name>/<branch_name>
+}}}
+
+== Running MONC ==
+
+If this is the first time you have used the model, you can follow the tutorials at https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc or design your own test case depending on your needs. 
+
+Submission of jobs is via the submonc_no_crun.pbs script, which you will need to customise for your own needs. As an example see:
+{{{
+#!/bin/bash --login
+#PBS -N MONC
+#PBS -l select=6
+#PBS -l walltime=03:00:00
+#PBS -j oe
+#PBS -A n02-REVCON 
+}}}
+where {{{n02-REVCON}}} in {{{#PBS -A n02-REVCON}}} is the ARCHER project account to be charged, this needs to changed to your project name. 
+
+{{{ 
+##############################################################
+#### THIS IS AN EXAMPLE SCRIPT TO DEMONSTRATE HOW TO      ####
+#### SUBMIT A STANDARD monc JOB WITHOUT A RESTART         ####
+#### Script assumes that there are directories called     ####
+#### monc_stdout , checkpoint_files and diagnostic_files  ####
+#### If these do not exist, MONC will fail                ####
+##############################################################
+
+echo Starting job
+
+# Allow multi-threading on cray
+export MPICH_MAX_THREAD_SAFETY=multiple
+
+# Make sure any symbolic links are resolved to absolute path
+export PBS_O_WORKDIR=$(readlink -f $PBS_O_WORKDIR)
+
+# Change to the direcotry that the job was submitted from
+cd $PBS_O_WORKDIR
+
+# Set the number of threads to 1
+#   This prevents any system libraries from automatically  
+#   using threading.
+export OMP_NUM_THREADS=1
+
+# set env variables for submission command
+config_path='testcases/radiative_convective_equilibrium/RCE_MO_cray.mcf'
+checkpoint_fn="checkpoint_files/RCE_dump.nc"
+
+aprun -B ./build/bin/monc_driver.exe --config=$config_path  --checkpoint_file=$c
+heckpoint_fn &> monc_stdout/output_RCE_dump_1
+}}}
+
+The above job will run monc configuration file {{{config_path='testcases/radiative_convective_equilibrium/RCE_MO_cray.mcf'}}} on 6 nodes using the executable {{{./build/bin/monc_driver.exe}}} and the model will checkpoint to {{{checkpoint_fn="checkpoint_files/RCE_dump.nc"}}}. Finally, standard output from the model will output to {{{monc_stdout/output_RCE_dump_1}}}.

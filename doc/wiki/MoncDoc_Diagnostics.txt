@@ -1,0 +1,185 @@
+= MONC diagnostics =
+
+MONC deals with diagnostics via an IO server approach, where the processes are categorised into two groups - MONC processes and IO server processes. Each IO server can support many MONC processes, with each MONC process sending its corresponding IO server data to be worked on and stored. Typically one would have many MONC processes and a few IO server processes but the mapping is very flexible and whilst a common setup is to have one core in a processor running IO server and the other cores MONC (and that IO server handling the processor's MONCs), any configuration can be achieved.
+
+The IO server does the job of receiving data from its MONC processes, performing optional local or global work on this (for instance to produce diagnostics) and then writing this to diagnostic files. The IO server processes work in conjunction, and so the data processing work is typically distributed amongst the processes.
+
+== IO server configuration ==
+
+The IO server is configured via a separate XML configuration file (the name of which is supplied via the ''ioserver_configuration_file'' option in the user configuration.) The file contains four important sections:
+
+=== Data definition ===
+
+This is the data that the IO server will receive from MONC and can contain many fields. In the example below we have two fields, a and b, ''a'' is an array of doubles which is optional (i.e. MONC might not send this over depending on how MONC is configured.) The field ''b'' is an integer scalar, and as we have omitted the optional aspect then this is mandatory (i.e. if MONC is not able to send it then an error is raised.) This specific data definition is sent from MONC every ''frequency'' timesteps and here ''{sampling_frequency}'' means to replace this with the configuration value held in ''sampling_frequency'' ( the { } braces do this substitution.) Each data definition also contains a time and timestep stamp which uniquely identifies the data.
+
+
+{{{
+<data-definition name="flux_fields" frequency="{sampling_frequency}">
+	<field name="a" type="array" data_type="double" optional=true/>
+	<field name="b" type="scalar" data_type="integer"/>
+</data-definition>
+}}}
+
+By putting the field into here, the IO server will instruct MONC to send this over. MONC will try to locate this field in its own in built fields (the common ones) and also the published fields of each components. 
+
+=== Data handling ===
+
+Once the servers receive data from their MONCs then they need to do some further processing and analysis on it. This is where the data handling section of the XML file comes in and here we have two diagnostics being generated, ''a_global'' and ''resulting_val''. The ''a_global'' diagnostic is an array of doubles, the size of this is ''zn'' (an in-built dimension size, this is needed for writing later on) and optionally we have said that the units are metres (which will be written into the diagnostics file.) This value is the result of a global inter IO reduction communication, using the mean operator on each ''a'' field received from MONC to generate the global average in ''a_global'' - which is also the name of the diagnostic and hence this value is the value for this diagnostic. For these communications the root needs to be provided, this can either be a number or ''auto'' which tells the IO server to allocate at runtime and dynamically load balance these communications amongst the IO servers (each auto in a diagnostics group will be allocated to the same IO server.)
+
+The second diagnostic, ''resulting_val'' is a bit more interesting, as this illustrates using multiple steps to produce the final diagnostics result. Here we are using an operator of type arithmetic (i.e. do some arithmetic), the result is ''resulting_val'' (i.e. the diagnostic name), with the equation ''b*b_max+5'' which is executed BDMAS. Note here that as the data arrives from MONC, this can not execute straight away as the value of ''b_max'' is not known - instead the second rule must execute first, where a global reduction is performed to find the maximum value of ''b'' and write this into ''b_max.'' The order of rules in the XML is inconsequential, the IO server will analyse the dependencies and execute rules when it has all the data available.
+
+{{{
+<data-handling>
+	<diagnostic field="a_global"  type="array" data_type="double" size="zn" units="metres">
+		<communication name="reduction" operator="mean" result="a_global" field="a" root="auto"/>
+	</diagnostic>
+       <diagnostic field="resulting_val"  type="scalar" data_type="integer">
+		<operator name="arithmetic" result="resulting_val" equation="b*b_max+5"/>
+                <communication name="reduction" operator="max" result="b_max" field="b" root="auto"/>
+	</diagnostic>
+</data-handling>
+}}}
+
+=== Groups ===
+
+When we are referring to fields it is often useful to group them up and refer to the group rather than individual fields, therefore the IO server provides a way of doing this via the XML below. It is very simple, but with the stipulation that a field should not appear twice in the same group.
+{{{
+<group name="my_diagnostics">
+	<member name="a_global"/>
+	<member name="resulting_val"/>
+</group>
+}}}
+
+=== Data writing ===
+
+This defines what gets written where, here we are writing to a file called ''diagnostic.nc'' (the timestep is appended before the ''.nc'') every ''diag_write_freq'' seconds, which is substituted in from the configuration file. The group that we defined before, ''my_diagnostics'' is included, this is time averaged with an output frequency from the time averaging every ''mm'' seconds (again substituted from the MONC configuration file.) Instantaneous diagnostics can be obtained by ''time_manipulation="instantaneous"'' and individual fields can also be included by using ''field'' instead of ''group''. Any number of fields and/or groups can be included, a field can be duplicated (i.e. the same field name) if it is instantaneous and time averaged.
+
+{{{
+<data-writing>
+	<file name="diagnostic.nc" write_time_frequency="{diag_write_freq}">
+		<include group="my_diagnostics" time_manipulation="averaged"  output_frequency="{mm}"/>
+	</file>
+</data-writing>
+}}}
+
+== Diagnostic communications ==
+
+There are a few inter io communications for determining the diagnostic value
+
+=== Reduction ===
+
+This will communicate values from all MONCs, operate upon these and send the resulting value to the root IO server process (which can be auto.) The operators supported are '''max''', '''min''', '''sum''' and '''mean'''.
+
+{{{
+<communication name="reduction" operator="max" result="b_max" field="b" root="0"/>
+}}}
+
+=== Broadcast ===
+
+Broadcast a value from an IO server to all other IO servers (note that this is at an IO server rather than MONC level.) Root can also be auto.
+
+{{{
+<communication name="broadcast"  result="a" field="a_local" root="0"/>
+}}}
+
+=== All reduction ===
+
+Will communicate values from all MONCs, operate upon these and then make the resultant value available to all IO server processes. The same operators are supported as in the reduce, and a root is still required (for performance reasons, this can be auto.)
+{{{
+<communication name="allreduction" operator="max" result="b_max" field="b" root="0"/>
+}}}
+
+== Diagnostic operators ==
+
+=== Arithmetic ===
+
+Performs some arithmetic on variables or constants to produce a resulting value. The equation is run BDMAS style and if the inputs are arrays then the equation is performed for each index in the array. The operator will only run once all provided variables in the equation are available.
+
+{{{
+<operator name="arithmetic" result="a" equation="b*10/c+5"/>
+}}}
+
+=== Reduction Location ===
+
+Returns the local value if the value (from a reduction) is the local value or returns -1 otherwise.
+
+{{{
+<operator name="reductionlocation" result="is_location_local" input="local_location, b_max, b"
+<communication name="reduction" operator="max" result="b_max" field="b" root="0"/>
+}}}
+
+=== Field slicing ===
+
+Slices a field based upon an index of one of the dimensions. In this example, it will slice the theta field on index 3 of dimension y (2D slice of z-x.)
+
+{{{
+<operator name="field_slicer" field="th" result="th_sliced" dimension="y" index="3"/>
+}}}
+
+Note that you often want to include the '''collective=true''' configuration to the enclosing diagnostic definition to inform that multiple MONCs might produce values that will be written.
+
+=== Field coarsening ===
+
+Allows you to coarsen a field in any number of dimensions, the appropriate dimensions of the result diagnostic must be set ''-auto''
+
+{{{
+<diagnostic field="th_coarsened"  type="array" data_type="double" size="z-auto,y-auto,x-auto" units="SI" collective=true>
+     <operator name="field_coarsener" field="th" result="th_coarsened" dimension="z,y,x" period="2,4,2"/>					
+</diagnostic>
+}}}
+
+It is fine to use the ''-auto'' prefix even if that dimension is not going to be coarsened. You often want to include the '''collective=true''' configuration to the enclosing diagnostic definition to inform that multiple MONCs might produce values that will be written.
+
+=== Adding an operator ===
+
+It is easy to add an operator, these are registered in the ''operator.F90'' file and the operator must have at least two procedures (called from ''operator.F90''.) The ''perform_my_operator'' procedure contains variable-value key value pairs in ''field_values'' and ''action_attributes'' contains the configuration of this operator. It results an array of reals (the result.) The ''my_operator_get_required_fields'' parses the ''action_attributes'' (arguments given to the operator) and returns a list of fields required before that operator can be run, this is used by the IO server as the dependency analysis for determining when rules can be run.
+
+{{{
+function perform_my_operator(field_values, action_attributes)
+    type(hashmap_type), intent(inout) :: field_values
+    type(map_type), intent(inout) :: action_attributes
+    real(kind=DEFAULT_PRECISION), dimension(:), allocatable :: perform_my_operator
+
+end function  perform_my_operator
+}}}
+
+{{{
+type(list_type) function my_operator_get_required_fields(action_attributes)
+    type(map_type), intent(inout) :: action_attributes
+
+end function my_operator_get_required_fields
+}}}
+
+== Writing values ==
+
+You can write diagnostic fields and/or fields directly from MONC. However any '''array''' field being written to file must include its dimension sizes via the ''size'' attribute. These are in-built to the IO server and are '''x''', '''y''', '''z''' and '''zn'''. If you are writing a MONC field to the file then size must be included in the definition of the field. The example below will produce an error as-is, because we are aiming to write ''b'' to the file but this has no size specified in its field definition. Either removing that include line or adding ''size="..."'' to its definition line will fix the issue. You can see in the definition of field ''a'' that this is being specified as a three dimensional array of size x,y,z. 
+
+{{{
+<data-definition name="flux_fields" frequency="{sampling_frequency}">
+	<field name="a" type="array" data_type="double" size="x,y,z"/>
+	<field name="b" type="array" data_type="double"/>
+</data-definition>
+
+<data-writing>
+	<file name="diagnostic.nc" write_time_frequency="{diag_write_freq}">
+		<include field="a" time_manipulation="instantaneous"  output_frequency="{mm}"/>
+		<include field="b" time_manipulation="instantaneous"  output_frequency="{mm}"/>
+	</file>
+</data-writing>
+}}}
+
+=== Collective writing ===
+
+You can also write collective fields (i.e. where each MONC contributes some value directly.) Here we are writing ''u'' the size is defined Fortran style, right most index is contiguous. To use these collective values you must provide ''collective="true"'' on the field definition (either prognostic or diagnostic.)
+
+{{{
+<data-definition name="other_fields" frequency="{sampling_frequency}">
+		<field name="u" type="array" data_type="double" size="z,y,x" collective=true/>
+	</data-definition>
+
+	<data-writing>
+		<file name="diagnostic.nc" write_time_frequency="{diag_write_freq}">			
+			<include field="u" time_manipulation="averaged"  output_frequency="{mm}"/>
+		</file>
+	</data-writing>
+}}}

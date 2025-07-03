@@ -1,0 +1,57 @@
+= MONC dependencies =
+[[PageOutline]]
+
+As well as connecting to mosrs, to build and run MONC, there are the following dependencies and libraries that need to be available
+   * FCM
+   * subversion - SVN
+   * netcdf-parallel
+   * hdf5 
+   * fftw
+   * mpich
+
+Below are instructions on how to install or make these dependencies available on the systems that MONC has been tested on
+
+=== MONC dependencies on Ubuntu 14.04 ===
+   * FCM - For instructions about installing FCM go to http://metomi.github.io/fcm/doc/installation/ but all you need to to is
+      * Download the tar.gz from Github, unpack and then add location of fcm/bin to your path
+   * SVN - install through synaptic package manager on ubuntu, search for subversion, mark subversion, accept dependencies and apply or use the follwoing command line
+
+{{{
+sudo apt-get install subversion 
+}}}
+
+To install all other dependencies use the install-monc-extras script, which can be obtain with the following command
+{{{
+fcm co https://code.metoffice.gov.uk/svn/monc/scripts/trunk/metomi_vms_install_monc_extras
+}}}
+The script location should be added to your path or moved to /usr/local/bin (which is in your path) and can then be run 
+{{{
+sudo install-monc-extras
+}}}
+
+=== MONC dependencies on metomi-vms ===
+The metomi-vms (see [https://code.metoffice.gov.uk/trac/monc/wiki/MoncDoc/MoncUserguide/MoncVms Moncmetomi-vms]) already has FCM and SVN and deals with the password caching. All you have to do with this is run the install-monc-extras.
+
+To install all other dependencies use the install-monc-extras script, which can be obtain with the following command
+{{{
+fcm co https://code.metoffice.gov.uk/svn/monc/scripts/trunk/metomi_vms_install_monc_extras
+}}}
+The script location should be added to your path or moved to /usr/local/bin (which is in your path), i.e.
+
+{{{
+sudo cp install-monc-extras /usr/local/bin/.
+}}}
+
+Then run the install script with the following
+{{{
+sudo install-monc-extras
+}}}
+This install will take around 20 minutes to complete.
+
+=== MONC depencies on Met Office linux desktops ===
+To install the appropriate libraries on the Met Office desktops, simply run the following commands to set up the environment:
+
+{{{
+source /data/users/lfric/modules/setup
+module load environment/monc/gnu/5.3.0
+}}}

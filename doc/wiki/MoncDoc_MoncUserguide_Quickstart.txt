@@ -1,0 +1,58 @@
+= MONC Quick start guide =
+
+This guide outlines the simple steps to getting up and running with MONC. This guide assumes that the appropriate libraries are already installed and that you have an appropriate FCM configuration file (preferably stored in the MONC repository).  If you don't have this, then you should start from MoncDoc/MachineConfiguration.  You also need to have an account on the Met Office Science repository, if not, then go to [code.metoffice.gov.uk] to get one. 
+
+The following instructions will set you up with a basic cold bubble test case based on Straka et al (1993).  It should be straightforward to adapt this case or pick up one of the other standard test cases from MoncDoc/MoncTestcases.
+
+   1.  First create a branch to work on in the repository.  Although you can work straight from the trunk, it is advisable to set up a branch so that you can commit back any changes you make.
+{{{
+#!div style="font-size: 100%"
+  {{{#!sh
+fcm bc quickstart fcm:monc.x_tr@vn0.8
+  }}}
+**before moving to code.metoffice, the repository is at https://puma.nerc.ac.uk/svn/MONC_svn/MONC/trunk**
+Here, we've named the branch 'quickstart', but you can choose a different name if you wish. You should be presented with an editor into which you should write a description of the purpose of your branch, e.g. 'My first try at running MONC'. Close the editor and answer 'y' to confirm you want to create the branch. 
+The info provided at the bottom of the output provides the full path of the branch that you've created.  Copy this ready for the next step.
+}}}
+
+
+  2. Change directory on your machine to the location you wish to work from and then check out your branch
+{{{
+#!div style="font-size: 100%"
+  {{{#!sh
+fcm co <your_branch>
+  }}}
+where <your_branch> is the full path to your branch you created in the previous step.
+}}}
+
+  3. Change directory into the branch which has been checked out and then build the executable
+{{{
+#!div style="font-size: 100%"
+  {{{#!sh
+fcm make -f fcm-make/<config_for_your_machine>
+  }}}
+where <config_for_your_machine> is the fcm configuration file for the machine you're working on.  [MoncDoc/FcmConfiguration Check here to see a list of machines which have configurations in the repository.] 
+This should build the executable for you in build/bin/monc_driver.exe.
+}}}
+
+  4. Run the Straka cold bubble case using the appropriate MONC configuration file.
+{{{
+#!div style="font-size: 100%"
+  {{{#!sh
+mpirun -np 4 build/bin/monc_driver.exe --config=testcases/tank_experiments/straka.mcf
+  }}}
+Here we are using 4 processes to run MONC.  3 will be used for the main MONC code and 1 will be assigned to the ioserver (this is configurable in the configuration file).  Note that if you wish to submit this to a queue on a supercomputer, then the above commands should be wrapped in a submission script.  [MoncDoc/MachineConfiguration Check here for notes on running on different machines.]
+}}}
+
+  5.  The resulting run should produce checkpoint files (these can be used as initial conditions to restart the model) and some diagnostics files. Some simple plotting routines are available to plot the output.  Extract the plotting routine from the repository (or if you wish to develop the plotting routines, then create a branch and check this out). 
+{{{
+#!div style="font-size: 100%"
+  {{{#!sh
+fcm extract https://code.metoffice.gov.uk/svn/monc/postproc/trunk/python/testcases/straka_plots.py
+  }}}
+**The trunk postproc code hasn't yet been populated, but you can get this from https://code.metoffice.gov.uk/svn/monc/postproc/branches/dev/benshipway/r5_quick_look_at_checkpointfiles/python/testcases/straka_plots.py**
+Run this python script.  The output should be as in the figure below.
+}}}
+[[Image(straka.png, 25%)]]
+
+  6. If you've got to here, then  you've now successfully run MONC.  Start exploring MONC and do some good science!!
